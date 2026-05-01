@@ -190,12 +190,12 @@ struct WordDetailView: View {
                     Text("Current Status:")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
-                    Text(word.srsData.status.rawValue.uppercased())
+                    Text(word.srsData.cardStatus.displayName.uppercased())
                         .font(.caption.bold())
                         .foregroundColor(.white)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
-                        .background(statusColor(for: word.srsData.status))
+                        .background(statusColor(for: word.srsData.cardStatus))
                         .cornerRadius(8)
                 }
                 .padding(.top, 8)
@@ -208,11 +208,11 @@ struct WordDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
     
-    private func statusColor(for status: LearningStatus) -> Color {
+    private func statusColor(for status: CardStatus) -> Color {
         switch status {
-        case .new: return .theme
-        case .learning: return .orange
-        case .review: return .green
+        case .new:        return .theme
+        case .learning:   return .orange
+        case .review:     return .green
         case .relearning: return .red
         }
     }

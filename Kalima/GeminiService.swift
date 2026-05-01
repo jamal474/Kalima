@@ -21,9 +21,13 @@ enum GeminiError: Error, LocalizedError {
 class GeminiService {
     static let shared = GeminiService()
     
-    // Key is now managed via AuthManager
     private var apiKey: String {
-        AuthManager.shared.geminiKey
+        if let path = Bundle.main.path(forResource: "Secrets", ofType: "plist"),
+           let dict = NSDictionary(contentsOfFile: path) as? [String: Any],
+           let key = dict["GEMINI_API_KEY"] as? String, !key.isEmpty, key != "YOUR_API_KEY_HERE" {
+            return key
+        }
+        return AuthManager.shared.geminiKey
     }
     private let baseURL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
     
@@ -34,7 +38,6 @@ class GeminiService {
             throw GeminiError.invalidURL
         }
         
-        // Define the prompt requesting JSON strictly
         let prompt = """
         You are an expert vocabulary tutor. Create highly memorable, short mnemonics for the word '\(word)', meaning: '\(meaning)'.
 
@@ -61,7 +64,6 @@ class GeminiService {
                     ]
                 ]
             ],
-            // Enforce JSON schema to guarantee proper parsing
             "generationConfig": [
                 "responseMimeType": "application/json"
             ]
@@ -80,9 +82,7 @@ class GeminiService {
 
                 let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
 
-                // Handle rate limiting (429) — parse retry delay from Gemini's error details
                 if statusCode == 429 {
-                    // Gemini returns retry info in error.details[].metadata.retryDelay (e.g. "30s")
                     var retryAfter = "a moment"
                     if let details = errorObj["details"] as? [[String: Any]] {
                         for detail in details {
@@ -102,11 +102,6 @@ class GeminiService {
             throw GeminiError.networkError(NSError(domain: "HTTP", code: (response as? HTTPURLResponse)?.statusCode ?? 500))
         }
         
-        // Parse the Gemini Response
-        /*
-        Gemini response structure:
-        { "candidates": [ { "content": { "parts": [ { "text": "[ { \"mnemonic\": ... } ]" } ] } } ] }
-        */
         guard let jsonObject = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let candidates = jsonObject["candidates"] as? [[String: Any]],
               let firstCandidate = candidates.first,

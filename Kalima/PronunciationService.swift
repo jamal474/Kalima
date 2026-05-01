@@ -17,7 +17,12 @@ class PronunciationService: NSObject, ObservableObject {
     
     /// Key is now managed via AuthManager
     private var elevenLabsAPIKey: String {
-        AuthManager.shared.elevenLabsKey
+        if let path = Bundle.main.path(forResource: "Secrets", ofType: "plist"),
+           let dict = NSDictionary(contentsOfFile: path) as? [String: Any],
+           let key = dict["ELEVENLABS_API_KEY"] as? String, !key.isEmpty, key != "YOUR_API_KEY_HERE" {
+            return key
+        }
+        return AuthManager.shared.elevenLabsKey
     }
     /// Brian – Neutral American English (best for accent learning).
     /// Other options: Adam (pNInz6obpgDQGcFmaJgB), Rachel (21m00Tcm4TlvDq8ikWAM)

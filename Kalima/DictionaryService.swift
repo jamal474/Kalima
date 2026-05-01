@@ -20,8 +20,12 @@ class DictionaryService {
     static let shared = DictionaryService()
     
     private var apiKey: String {
-        let userKey = AuthManager.shared.merriamWebsterKey
-        return userKey
+        if let path = Bundle.main.path(forResource: "Secrets", ofType: "plist"),
+           let dict = NSDictionary(contentsOfFile: path) as? [String: Any],
+           let key = dict["MW_API_KEY"] as? String, !key.isEmpty, key != "YOUR_API_KEY_HERE" {
+            return key
+        }
+        return AuthManager.shared.merriamWebsterKey
     }
     private let baseURL = "https://www.dictionaryapi.com/api/v3/references/collegiate/json/"
     

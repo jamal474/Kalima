@@ -11,7 +11,7 @@ class FlashcardViewModel {
     // Status Trackers
     var sessionCompleted: Bool = false
     
-    /// Constructs the SM-2 daily queue prioritizing Reviews > Learning > New (capped at 20)
+    /// Constructs the daily queue prioritizing Reviews > Learning > New (capped at 20)
     func getDailyQueue(deckId: UUID? = nil, context: ModelContext) {
         let descriptor = FetchDescriptor<Word>()
         let now = Date()
@@ -25,15 +25,21 @@ class FlashcardViewModel {
             }
             
             // Priority 1: Overdue/Due Reviews
-            let reviews = allWords.filter { $0.srsData.status == .review && $0.srsData.nextReviewDate <= now }
-                .sorted { $0.srsData.nextReviewDate < $1.srsData.nextReviewDate }
+            let reviews = allWords.filter {
+                if case .review = $0.srsData.cardStatus { return ($0.srsData.nextReviewDate ?? Date()) <= now }
+                return false
+            }.sorted { ($0.srsData.nextReviewDate ?? Date()) < ($1.srsData.nextReviewDate ?? Date()) }
             
             // Priority 2: Learning / Relearning
-            let learning = allWords.filter { ($0.srsData.status == .learning || $0.srsData.status == .relearning) && $0.srsData.nextReviewDate <= now }
-                .sorted { $0.srsData.nextReviewDate < $1.srsData.nextReviewDate }
+            let learning = allWords.filter {
+                switch $0.srsData.cardStatus {
+                case .learning, .relearning: return ($0.srsData.nextReviewDate ?? Date()) <= now
+                default: return false
+                }
+            }.sorted { ($0.srsData.nextReviewDate ?? Date()) < ($1.srsData.nextReviewDate ?? Date()) }
             
             // Priority 3: New Cards (Hard capped at 20)
-            let newCards = allWords.filter { $0.srsData.status == .new }
+            let newCards = allWords.filter { $0.srsData.isNew }
                 .prefix(20)
             
             // Create final queue
@@ -60,8 +66,16 @@ class FlashcardViewModel {
         guard let card = currentCard else { return }
         
         // Execute the Spaced Repetition Logic on this card
-        let newSRSData = SRSEngine.processReview(currentData: card.srsData, rating: rating)
-        card.srsData = newSRSData
+        let result = SRSEngine.processReview(currentData: card.srsData, rating: rating)
+        card.srsData = result.updatedData
+        
+        // Log graduation / lapse events for debugging / future analytics
+        if result.didGraduate {
+            print("🎓 '\(card.term)' graduated to review (interval: \(result.scheduledIntervalDays)d)")
+        }
+        if result.didLapse {
+            print("😓 '\(card.term)' lapsed back to relearning")
+        }
         
         // Save Context
         do {

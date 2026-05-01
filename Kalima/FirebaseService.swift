@@ -8,8 +8,24 @@ class FirebaseService: ObservableObject {
     static let shared = FirebaseService()
     private init() {}
 
-    private let apiKey = "REMOVED_API_KEY"
-    private let projectID = "kalima-sabo"
+    /// Fetched securely from GoogleService-Info.plist (gitignored)
+    private var apiKey: String {
+        guard let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
+              let dict = NSDictionary(contentsOfFile: path) as? [String: Any],
+              let key = dict["API_KEY"] as? String else {
+            fatalError("🚨 Missing GoogleService-Info.plist. Please download it from Firebase Console and add it to your Xcode project to use Firebase REST APIs.")
+        }
+        return key
+    }
+    
+    private var projectID: String {
+        guard let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
+              let dict = NSDictionary(contentsOfFile: path) as? [String: Any],
+              let pid = dict["PROJECT_ID"] as? String else {
+            fatalError("🚨 Missing GoogleService-Info.plist. Please download it from Firebase Console and add it to your Xcode project to use Firebase REST APIs.")
+        }
+        return pid
+    }
 
     // ─────────────────────────────────────────────
     // MARK: Authentication
@@ -245,15 +261,27 @@ class FirebaseService: ObservableObject {
         let urlStr = "https://firestore.googleapis.com/v1/projects/\(projectID)/databases/(default)/documents/users/\(uid)/words"
         guard let url = URL(string: urlStr) else { throw URLError(.badURL) }
 
-        var request = URLRequest(url: url)
-        request.addValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+        func makeRequest(token: String) -> URLRequest {
+            var r = URLRequest(url: url)
+            r.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            return r
+        }
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        var (data, response) = try await URLSession.shared.data(for: makeRequest(token: idToken))
+
+        if (response as? HTTPURLResponse)?.statusCode == 401 {
+            print("fetchAllWordsRaw: 401 Unauthorized, refreshing token...")
+            let newToken = try await refreshedToken()
+            (data, response) = try await URLSession.shared.data(for: makeRequest(token: newToken))
+        }
 
         if let http = response as? HTTPURLResponse, http.statusCode == 404 { return [] }
 
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let documents = json["documents"] as? [[String: Any]] else {
+            if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                print("fetchAllWordsRaw HTTP Error \(http.statusCode): \(String(data: data, encoding: .utf8) ?? "")")
+            }
             return []
         }
         return documents
@@ -320,7 +348,7 @@ class FirebaseService: ObservableObject {
                 if let srsMap    = (fields["srsData"] as? [String: Any])?["mapValue"] as? [String: Any],
                    let srsFields = srsMap["fields"] as? [String: Any] {
                     let statusStr = (srsFields["status"] as? [String: Any])?["stringValue"] as? String ?? "new"
-                    srs.status = LearningStatus(rawValue: statusStr) ?? .new
+                    srs.status = statusStr
                     if let intervalStr = (srsFields["interval"] as? [String: Any])?["integerValue"] as? String {
                         srs.interval = Int(intervalStr) ?? 0
                     }
@@ -337,6 +365,7 @@ class FirebaseService: ObservableObject {
 
                 // ── Construct & insert ─────────────────────────────────
                 let newWord = Word(
+                    id:               uuid,
                     userId:           uid,
                     term:             term,
                     partOfSpeech:     pos,
@@ -354,12 +383,15 @@ class FirebaseService: ObservableObject {
                     srsData:          srs,
                     lastSyncedAt:     Date()
                 )
-                newWord.id = uuid
                 context.insert(newWord)
                 print("Merged '\(term)' from cloud with \(fetchedMnemonics?.count ?? 0) mnemonics, \(examples.count) examples")
             }
 
-            try? context.save()
+            do {
+                try context.save()
+            } catch {
+                print("CRITICAL: Failed to save context after pullAndMerge! Error: \(error)")
+            }
 
         } catch {
             print("Pull & Merge failed: \(error.localizedDescription)")

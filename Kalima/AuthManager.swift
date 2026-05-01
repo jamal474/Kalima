@@ -71,7 +71,13 @@ public class AuthManager: ObservableObject {
                           userInfo: [NSLocalizedDescriptionKey: "No refresh token available. Please sign in again."])
         }
 
-        let urlStr = "https://securetoken.googleapis.com/v1/token?key=REMOVED_API_KEY"
+        guard let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
+              let dict = NSDictionary(contentsOfFile: path) as? [String: Any],
+              let apiKey = dict["API_KEY"] as? String else {
+            throw NSError(domain: "Auth", code: -1, userInfo: [NSLocalizedDescriptionKey: "Missing GoogleService-Info.plist"])
+        }
+
+        let urlStr = "https://securetoken.googleapis.com/v1/token?key=\(apiKey)"
         guard let url = URL(string: urlStr) else { throw URLError(.badURL) }
 
         var request = URLRequest(url: url)
@@ -132,14 +138,12 @@ public class AuthManager: ObservableObject {
         guard isLoggedIn, !uid.isEmpty else { return }
 
         if let keys = await FirebaseService.shared.fetchKeys(uid: uid, idToken: idToken) {
-            // ── Cloud has keys — apply them ──────────────────────────────
             if !keys.gemini.isEmpty         { self.geminiKey         = keys.gemini;         UserDefaults.standard.set(keys.gemini,         forKey: "gemini_api_key")       }
             if !keys.elevenLabs.isEmpty     { self.elevenLabsKey     = keys.elevenLabs;     UserDefaults.standard.set(keys.elevenLabs,     forKey: "eleven_labs_api_key") }
             if !keys.merriamWebster.isEmpty { self.merriamWebsterKey = keys.merriamWebster; UserDefaults.standard.set(keys.merriamWebster, forKey: "mw_api_key")          }
             if !keys.groq.isEmpty           { self.groqKey           = keys.groq;           UserDefaults.standard.set(keys.groq,           forKey: "groq_api_key")        }
             print("☁️ API keys pulled from Firestore.")
         } else {
-            // ── No keys in Firestore yet — bootstrap by uploading local ones ──
             let hasLocalKeys = !geminiKey.isEmpty || !elevenLabsKey.isEmpty
                             || !merriamWebsterKey.isEmpty || !groqKey.isEmpty
             if hasLocalKeys {

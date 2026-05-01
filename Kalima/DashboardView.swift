@@ -9,9 +9,24 @@ struct MainListView: View {
     @ObservedObject var auth = AuthManager.shared
     
     // Computed reactive properties
-    private var dueTodayCount: Int { allWords.filter { $0.srsData.status != .new && $0.srsData.nextReviewDate <= Date() }.count }
-    private var newCardsCount: Int { allWords.filter { $0.srsData.status == .new }.count }
-    private var learningCardsCount: Int { allWords.filter { $0.srsData.status == .learning || $0.srsData.status == .relearning }.count }
+    private var dueTodayCount: Int {
+        let now = Date()
+        return allWords.filter {
+            switch $0.srsData.cardStatus {
+            case .new: return false
+            default: return ($0.srsData.nextReviewDate ?? Date()) <= now
+            }
+        }.count
+    }
+    private var newCardsCount: Int { allWords.filter { $0.srsData.isNew }.count }
+    private var learningCardsCount: Int {
+        allWords.filter {
+            switch $0.srsData.cardStatus {
+            case .learning, .relearning: return true
+            default: return false
+            }
+        }.count
+    }
     private var totalQueueCount: Int { dueTodayCount + min(20, newCardsCount) }
     
     // Search and Filter State
@@ -153,7 +168,7 @@ struct MainListView: View {
                                     
                                     Spacer()
                                     
-                                    Text(word.srsData.status.rawValue.uppercased())
+                                    Text(word.srsData.cardStatus.displayName.uppercased())
                                         .font(.system(size: 10, weight: .bold))
                                         .foregroundColor(.theme)
                                         .padding(.horizontal, 8)

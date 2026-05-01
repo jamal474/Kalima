@@ -21,20 +21,19 @@ final class Word {
     // Categorization
     var deck: Deck?
     
-    // User Context
-    var mnemonics: String?          // Legacy single-string field (kept for backward compat)
-    var personalMnemonics: [MnemonicItem]?  // Structured personal mnemonics with description
+    var mnemonics: String?
+    var personalMnemonics: [MnemonicItem]?
     var fetchedMnemonics: [MnemonicItem]?
     var tags: [String]
     var isFavorite: Bool
     
-    // Learning Status -- SwiftData supports struct properties if they conform to Codable
+    // Learning Status
     var srsData: SRSData
     var createdAt: Date
     var lastSyncedAt: Date?
     
-    init(userId: String = "local_user", term: String, partOfSpeech: String, phoneticSpelling: String? = nil, pronunciationUrl: URL? = nil, meaning: String, examples: [String] = [], synonyms: [String] = [], antonyms: [String] = [], detailedMeanings: [MeaningDetails]? = nil, mnemonics: String? = nil, personalMnemonics: [MnemonicItem]? = nil, fetchedMnemonics: [MnemonicItem]? = nil, tags: [String] = [], deck: Deck? = nil, isFavorite: Bool = false, srsData: SRSData = SRSData(), createdAt: Date = Date(), lastSyncedAt: Date? = nil) {
-        self.id = UUID()
+    init(id: UUID? = nil, userId: String = "local_user", term: String, partOfSpeech: String, phoneticSpelling: String? = nil, pronunciationUrl: URL? = nil, meaning: String, examples: [String] = [], synonyms: [String] = [], antonyms: [String] = [], detailedMeanings: [MeaningDetails]? = nil, mnemonics: String? = nil, personalMnemonics: [MnemonicItem]? = nil, fetchedMnemonics: [MnemonicItem]? = nil, tags: [String] = [], deck: Deck? = nil, isFavorite: Bool = false, srsData: SRSData = SRSData(), createdAt: Date = Date(), lastSyncedAt: Date? = nil) {
+        self.id = id ?? UUID()
         self.userId = userId
         self.term = term
         self.partOfSpeech = partOfSpeech
@@ -60,7 +59,6 @@ final class Word {
     func toFirestoreFields() -> [String: Any] {
         let iso = ISO8601DateFormatter()
 
-        // ── Core fields ────────────────────────────────────────────────
         var fields: [String: Any] = [
             "term":         ["stringValue": term],
             "meaning":      ["stringValue": meaning],
@@ -77,7 +75,6 @@ final class Word {
             fields["pronunciationUrl"] = ["stringValue": url.absoluteString]
         }
 
-        // ── Arrays (examples / synonyms / antonyms / tags) ─────────────
         func stringArray(_ arr: [String]) -> [String: Any] {
             ["arrayValue": ["values": arr.map { ["stringValue": $0] }]]
         }
@@ -86,7 +83,6 @@ final class Word {
         if !antonyms.isEmpty  { fields["antonyms"]  = stringArray(antonyms) }
         if !tags.isEmpty      { fields["tags"]       = stringArray(tags) }
 
-        // ── Detailed meanings (part-of-speech → definitions + examples) ─
         if let dm = detailedMeanings, !dm.isEmpty {
             let encoded = (try? JSONSerialization.data(withJSONObject:
                 dm.map { ["partOfSpeech": $0.partOfSpeech,
@@ -98,7 +94,6 @@ final class Word {
             }
         }
 
-        // ── AI-fetched mnemonics (Groq / Gemini) ───────────────────────
         if let fm = fetchedMnemonics, !fm.isEmpty {
             let encoded = (try? JSONSerialization.data(withJSONObject:
                 fm.map { ["mnemonic": $0.mnemonic, "explanation": $0.explanation] }
@@ -108,7 +103,6 @@ final class Word {
             }
         }
 
-        // ── Personal mnemonics (user-written — must not be lost) ───────
         if let pm = personalMnemonics, !pm.isEmpty {
             let encoded = (try? JSONSerialization.data(withJSONObject:
                 pm.map { ["mnemonic": $0.mnemonic, "explanation": $0.explanation] }
@@ -118,13 +112,12 @@ final class Word {
             }
         }
 
-        // ── SRS scheduling data ────────────────────────────────────────
         let srsDict: [String: Any] = [
-            "status":         ["stringValue":   srsData.status.rawValue],
-            "nextReviewDate": ["timestampValue": iso.string(from: srsData.nextReviewDate)],
-            "interval":       ["integerValue":  "\(srsData.interval)"],
-            "easeFactor":     ["doubleValue":   srsData.easeFactor],
-            "consecutiveCorrectAnswers": ["integerValue": "\(srsData.consecutiveCorrectAnswers)"]
+            "status":         ["stringValue":   srsData.status ?? "new"],
+            "nextReviewDate": ["timestampValue": iso.string(from: srsData.nextReviewDate ?? Date())],
+            "interval":       ["integerValue":  "\(srsData.interval ?? 0)"],
+            "easeFactor":     ["doubleValue":   srsData.easeFactor ?? 2.5],
+            "consecutiveCorrectAnswers": ["integerValue": "\(srsData.consecutiveCorrectAnswers ?? 0)"]
         ]
         fields["srsData"] = ["mapValue": ["fields": srsDict]]
 
@@ -133,11 +126,66 @@ final class Word {
 }
 
 
-enum LearningStatus: String, Codable {
+/// Tracks precisely which queue and step a flashcard is in.
+enum CardStatus: Equatable {
+    /// The card has never been reviewed. Not yet in any queue.
     case new
-    case learning
-    case review = "reviewing" // Maps to legacy database state
-    case relearning = "graduated" // Maps to legacy database state
+
+    /// The card is in the initial learning phase.
+    /// `step` is the index into SRSConfig.learningSteps the card is currently at.
+    /// When step reaches learningSteps.count, the card graduates to .review.
+    case learning(step: Int)
+
+    /// The card is in the main spaced repetition review queue.
+    case review
+
+    /// The card was failed during a review session and is being relearned.
+    /// `step` is the index into SRSConfig.relearningSteps.
+    /// When step reaches relearningSteps.count, the card returns to .review.
+    case relearning(step: Int)
+
+    // MARK: - Display Helpers
+
+    /// A human-readable label suitable for display in the UI.
+    var displayName: String {
+        switch self {
+        case .new:               return "New"
+        case .learning:          return "Learning"
+        case .review:            return "Review"
+        case .relearning:        return "Relearning"
+        }
+    }
+
+    // MARK: - Firestore Serialisation
+
+    /// Encodes the status as a flat string for Firestore storage.
+    /// Examples: "new", "learning_0", "review", "relearning_1"
+    var firestoreValue: String {
+        switch self {
+        case .new:                  return "new"
+        case .learning(let step):   return "learning_\(step)"
+        case .review:               return "review"
+        case .relearning(let step): return "relearning_\(step)"
+        }
+    }
+
+    /// Decodes a Firestore string back to a CardStatus.
+    init(firestoreValue: String) {
+        switch firestoreValue {
+        case "new":                                  self = .new
+        case "review", "reviewing":                  self = .review
+        case let s where s.hasPrefix("learning_"):
+            let step = Int(s.dropFirst("learning_".count)) ?? 0
+            self = .learning(step: step)
+        case let s where s.hasPrefix("relearning_"):
+            let step = Int(s.dropFirst("relearning_".count)) ?? 0
+            self = .relearning(step: step)
+        // Legacy mappings from the old LearningStatus enum
+        case "learning":                             self = .learning(step: 0)
+        case "graduated":                            self = .relearning(step: 0)
+        default:                                     self = .new
+        }
+    }
 }
 
 extension Color {
@@ -157,17 +205,44 @@ struct MnemonicItem: Codable, Hashable {
 }
 
 struct SRSData: Codable {
-    var status: LearningStatus
-    var nextReviewDate: Date
-    var interval: Int // In days
-    var easeFactor: Double
-    var consecutiveCorrectAnswers: Int // Keeping this internal metric for future gamification if needed
-    
-    init(status: LearningStatus = .new, nextReviewDate: Date = Date(), interval: Int = 0, easeFactor: Double = 2.5, consecutiveCorrectAnswers: Int = 0) {
-        self.status = status
+    var status: String?
+    var nextReviewDate: Date?
+    var interval: Int?
+    var easeFactor: Double?
+    var consecutiveCorrectAnswers: Int?
+
+    // Computed property for typed access to the status
+    var cardStatus: CardStatus {
+        get { CardStatus(firestoreValue: status ?? "new") }
+        set { status = newValue.firestoreValue }
+    }
+
+    /// True when the card has never been reviewed.
+    var isNew: Bool {
+        if case .new = cardStatus { return true }
+        return false
+    }
+
+    init(status: CardStatus = .new, nextReviewDate: Date = Date(), interval: Int = 0, easeFactor: Double = 2.5, consecutiveCorrectAnswers: Int = 0) {
+        self.status = status.firestoreValue
         self.nextReviewDate = nextReviewDate
         self.interval = interval
         self.easeFactor = easeFactor
         self.consecutiveCorrectAnswers = consecutiveCorrectAnswers
+    }
+
+    var safeInterval: Int {
+        get { interval ?? 0 }
+        set { interval = newValue }
+    }
+    
+    var safeEaseFactor: Double {
+        get { easeFactor ?? 2.5 }
+        set { easeFactor = newValue }
+    }
+    
+    var safeCCA: Int {
+        get { consecutiveCorrectAnswers ?? 0 }
+        set { consecutiveCorrectAnswers = newValue }
     }
 }

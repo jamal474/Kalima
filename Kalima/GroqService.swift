@@ -1,12 +1,18 @@
 import Foundation
 
 // Groq uses the OpenAI-compatible Chat Completions API.
-// Free tier: https://console.groq.com — ~14,400 req/day, 30 req/min with LLaMA 3
 class GroqService {
     static let shared = GroqService()
     private init() {}
 
-    private var apiKey: String { AuthManager.shared.groqKey }
+    private var apiKey: String {
+        if let path = Bundle.main.path(forResource: "Secrets", ofType: "plist"),
+           let dict = NSDictionary(contentsOfFile: path) as? [String: Any],
+           let key = dict["GROQ_API_KEY"] as? String, !key.isEmpty, key != "YOUR_API_KEY_HERE" {
+            return key
+        }
+        return AuthManager.shared.groqKey
+    }
     private let baseURL = "https://api.groq.com/openai/v1/chat/completions"
     private let model   = "llama-3.3-70b-versatile"
 
@@ -16,8 +22,6 @@ class GroqService {
         }
         guard let url = URL(string: baseURL) else { throw GeminiError.invalidURL }
 
-        // NOTE: Do NOT use response_format:json_object — Groq forbids top-level arrays in that mode.
-        // Instead, ask directly for a JSON array in the prompt and parse the text content.
         let systemPrompt = """
             You are an expert vocabulary tutor. Your goal is to create clever, short, and highly memorable mnemonics using phonetic wordplay, rhymes, or vivid imagery.
 
@@ -51,7 +55,6 @@ class GroqService {
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
-        // ── Error handling ──────────────────────────────────────────
         if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
             let errorBody = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
             let errorMsg  = ((errorBody["error"] as? [String: Any])?["message"] as? String) ?? "HTTP \(http.statusCode)"
@@ -64,8 +67,6 @@ class GroqService {
             throw GeminiError.apiError("Groq: \(errorMsg)")
         }
 
-        // ── Parse response ──────────────────────────────────────────
-        // OpenAI format: { "choices": [{ "message": { "content": "..." } }] }
         guard let json       = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let choices     = json["choices"] as? [[String: Any]],
               let msgContent  = (choices.first?["message"] as? [String: Any])?["content"] as? String else {
@@ -74,13 +75,10 @@ class GroqService {
             throw GeminiError.unprocessableData
         }
 
-        print("Groq raw content: \(msgContent)")  // Debug – remove once stable
+        print("Groq raw content: \(msgContent)")
         return try parseMnemonicArray(from: msgContent)
     }
 
-    // ── Parsing helpers ─────────────────────────────────────────────────
-
-    /// Strips markdown fences and decodes a JSON array of MnemonicItem.
     private func parseMnemonicArray(from text: String) throws -> [MnemonicItem] {
         let cleaned = text
             .trimmingCharacters(in: .whitespacesAndNewlines)
