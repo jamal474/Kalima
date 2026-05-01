@@ -12,22 +12,23 @@ struct MainListView: View {
     private var dueTodayCount: Int {
         let now = Date()
         return allWords.filter {
-            switch $0.srsData.cardStatus {
-            case .new: return false
-            default: return ($0.srsData.nextReviewDate ?? Date()) <= now
+            if case .review = $0.srsData.cardStatus {
+                return ($0.srsData.nextReviewDate ?? Date()) <= now
             }
+            return false
         }.count
     }
     private var newCardsCount: Int { allWords.filter { $0.srsData.isNew }.count }
     private var learningCardsCount: Int {
-        allWords.filter {
+        let now = Date()
+        return allWords.filter {
             switch $0.srsData.cardStatus {
-            case .learning, .relearning: return true
+            case .learning, .relearning: return ($0.srsData.nextReviewDate ?? Date()) <= now
             default: return false
             }
         }.count
     }
-    private var totalQueueCount: Int { dueTodayCount + min(20, newCardsCount) }
+    private var totalQueueCount: Int { dueTodayCount + learningCardsCount + min(20, newCardsCount) }
     
     // Search and Filter State
     @State private var searchText = ""
