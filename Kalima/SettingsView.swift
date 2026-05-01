@@ -20,11 +20,12 @@ struct SettingsView: View {
                             AsyncImage(url: url) { image in
                                 image.resizable()
                                      .aspectRatio(contentMode: .fill)
+                                     .frame(width: 60, height: 60)
+                                     .clipShape(Circle())
                             } placeholder: {
                                 ProgressView()
+                                    .frame(width: 60, height: 60)
                             }
-                            .frame(width: 60, height: 60)
-                            .clipShape(Circle())
                         } else {
                             Image(systemName: "person.circle.fill")
                                 .resizable()

@@ -3,6 +3,7 @@ import SwiftData
 
 struct AddWordView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
     @State private var viewModel = AddWordViewModel()
     @State private var showToast = false
     @State private var toastMessage = ""
@@ -193,6 +194,7 @@ struct AddWordView: View {
                         // Save Button
                         Button(action: {
                             viewModel.saveWord(context: modelContext)
+                            dismiss()
                         }) {
                             Text("Save Word")
                                 .font(.headline)

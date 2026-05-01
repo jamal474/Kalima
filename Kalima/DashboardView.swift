@@ -258,13 +258,15 @@ struct MainListView: View {
                                 image
                                     .resizable()
                                     .scaledToFill()
+                                    .frame(width: 32, height: 32)
+                                    .clipShape(Circle())
                             } placeholder: {
                                 Image(systemName: "person.circle.fill")
                                     .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 32, height: 32)
                                     .foregroundColor(.gray.opacity(0.5))
                             }
-                            .frame(width: 32, height: 32)
-                            .clipShape(Circle())
                         } else {
                             Image(systemName: "person.circle.fill")
                                 .resizable()
@@ -273,6 +275,8 @@ struct MainListView: View {
                                 .foregroundColor(.theme)
                         }
                     }
+                    .frame(width: 32, height: 32)
+                    .contentShape(Circle())
                     .padding(.vertical, 10)
                     .padding(.horizontal, 0)
                 }
