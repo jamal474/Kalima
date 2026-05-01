@@ -9,7 +9,7 @@ Kalima is an intelligent vocabulary learning application built to accelerate lan
 
 ---
 
-## 🚀 Core Technologies & Integrations
+## Core Technologies & Integrations
 
 | Technology | Purpose | Implementation Details |
 | :--- | :--- | :--- |
@@ -22,7 +22,7 @@ Kalima is an intelligent vocabulary learning application built to accelerate lan
 
 ---
 
-## 🧠 The Spaced Repetition Engine
+## The Spaced Repetition Engine
 
 Kalima does not use standard spaced repetition. It utilizes a heavily customized, SM-2 derived algorithm. The engine schedules reviews exactly when you are most likely to forget a word, dynamically adapting to your memory performance.
 
@@ -46,11 +46,11 @@ The algorithm state machine smoothly transitions cards from short-term memory (m
 ```mermaid
 graph TD
     %% Styling
-    classDef default fill:#f9f9f9,stroke:#333,stroke-width:2px;
-    classDef new fill:#d1e8ff,stroke:#005bb5,stroke-width:2px;
-    classDef learning fill:#fff3cd,stroke:#b58105,stroke-width:2px;
-    classDef review fill:#d4edda,stroke:#28a745,stroke-width:2px;
-    classDef relearning fill:#f8d7da,stroke:#dc3545,stroke-width:2px;
+    classDef default fill:#f9f9f9,stroke:#333,stroke-width:2px,color:#000;
+    classDef new fill:#d1e8ff,stroke:#005bb5,stroke-width:2px,color:#000;
+    classDef learning fill:#fff3cd,stroke:#b58105,stroke-width:2px,color:#000;
+    classDef review fill:#d4edda,stroke:#28a745,stroke-width:2px,color:#000;
+    classDef relearning fill:#f8d7da,stroke:#dc3545,stroke-width:2px,color:#000;
 
     %% Nodes
     A(["New Card"]):::new -->|"Review"| B{"Learning Phase<br>(1m, 10m)"}:::learning
@@ -69,7 +69,7 @@ graph TD
     D -->|"Again"| D
 ```
 
-## 🛠 Project Setup
+## Project Setup
 
 1. Clone the repository.
 2. Download your `GoogleService-Info.plist` from the Firebase Console and place it in the `Kalima` directory (ensure it is added to your Xcode target).
