@@ -192,7 +192,12 @@ struct WordDetailView: View {
                         .foregroundColor(.secondary)
                     Text(word.srsData.cardStatus.displayName.uppercased())
                         .font(.caption.bold())
-                        .foregroundColor(.white)
+                        .foregroundColor({
+                            switch word.srsData.cardStatus {
+                            case .new, .learning: return .black
+                            default: return .white
+                            }
+                        }())
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
                         .background(statusColor(for: word.srsData.cardStatus))

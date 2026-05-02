@@ -72,7 +72,7 @@ struct MainListView: View {
                         Button(action: { showingReviewSession = true }) {
                             Text("Start Review Session (\(totalQueueCount))")
                                 .font(.headline)
-                                .foregroundColor(.white)
+                                .foregroundColor(.black)
                                 .frame(maxWidth: .infinity)
                                 .padding()
                                 .background(Color.theme)
@@ -110,15 +110,27 @@ struct MainListView: View {
                                     #endif
                                 
                                 if !searchText.isEmpty {
-                                    Button(action: { searchText = "" }) {
+                                    Button(action: { 
+                                        withAnimation(.spring) { searchText = "" }
+                                    }) {
                                         Image(systemName: "xmark.circle.fill")
                                             .foregroundColor(.secondary)
                                     }
+                                    .transition(.scale.combined(with: .opacity))
                                 }
                             }
-                            .padding(10)
-                            .background(Color(uiColor: .systemBackground))
-                            .cornerRadius(10)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                                    .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 4)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .strokeBorder(Color.gray.opacity(0.15), lineWidth: 1)
+                            )
+                            .padding(.horizontal, 16)
                             
                             // Horizontal Chip Filters
                             ScrollView(.horizontal, showsIndicators: false) {
@@ -128,9 +140,10 @@ struct MainListView: View {
                                             .font(.subheadline.bold())
                                             .padding(.horizontal, 16)
                                             .padding(.vertical, 8)
-                                            .background(selectedFilter == filter ? Color.theme : Color(uiColor: .systemBackground))
-                                            .foregroundColor(selectedFilter == filter ? .white : .primary)
+                                            .background(selectedFilter == filter ? Color.theme : Color(uiColor: .secondarySystemGroupedBackground))
+                                            .foregroundColor(selectedFilter == filter ? .black : .primary)
                                             .cornerRadius(20)
+                                            .shadow(color: selectedFilter == filter ? Color.theme.opacity(0.3) : Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
                                             .onTapGesture {
                                                 withAnimation(.spring()) {
                                                     selectedFilter = filter

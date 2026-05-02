@@ -24,7 +24,7 @@ struct LoginView: View {
                         .frame(width: 100, height: 100)
                     Image(systemName: "books.vertical.fill")
                         .font(.system(size: 50))
-                        .foregroundColor(.white)
+                        .foregroundColor(.black)
                 }
                 Text("kalima")
                     .font(.system(size: 48, weight: .bold, design: .serif))

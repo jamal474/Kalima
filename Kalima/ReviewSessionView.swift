@@ -233,7 +233,7 @@ struct FlashcardView: View {
                 Button(action: onReveal) {
                     Text("Show Answer")
                         .font(.headline)
-                        .foregroundColor(.white)
+                        .foregroundColor(.black)
                         .frame(maxWidth: .infinity)
                         .padding()
                         .background(Color.theme)
@@ -255,7 +255,7 @@ struct RatingButton: View {
         Button(action: action) {
             Text(title)
                 .font(.subheadline.bold())
-                .foregroundColor(.white)
+                .foregroundColor(color == .theme ? .black : .white)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
                 .background(
